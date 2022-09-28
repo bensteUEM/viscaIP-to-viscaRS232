@@ -1,4 +1,5 @@
-# udp-to-serial
+# 
+viscaIP-to-viscaRS232 
 A Node.js server that listens to a specified UDP port and writes whatever data it receives to a local serial port.
 
 Written so we could send VISCA via UDP to a local RS-232 serial adapter to control multiple Marshall CV620-BK4 cameras.
@@ -6,6 +7,7 @@ Responses from the camera are forwarded back to the controller where applicable.
 Visca-IP can originate from multiple sources e.g. Companion App or VS-PTC-IP Controller.
 
 Many thanks to Jospeh Adams who provided initial code and explanation!
+https://github.com/josephdadams/udp-to-serial
 
 Known to work with this adapter:
 https://www.amazon.com/gp/product/B078X5H8H7/
