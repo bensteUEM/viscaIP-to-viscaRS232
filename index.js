@@ -8,11 +8,41 @@ const configFile = 'config.json';
 const config = {
 	port_udp: 52381,
 	port_serial: '/dev/ttyUSB0',
-	baudRate: 9600
+	baudRate: 9600,
+	visca_id: 1
 };
 
-var serialPort = null; //variable for serial port
-var server = null; //variable to store UDP server socket(s)
+var serialPort = null; //variable for serial port reference
+var socket = null; //variable to store UDP socket for responding
+
+//save last used address and port for response
+var last_address = null
+var last_port = null
+
+function startup() { // runs the UDP and Serial connections
+	loadFile();
+	console.log("Loading config",config)
+
+	//Open Serial Port
+	console.log('Opening Serial Port: ' + config.port_serial);
+	//console.log('Baud Rate: ' + config.baudRate);
+	serialPort = new SerialPort(config.port_serial, {
+		baudRate: config.baudRate
+	}, function (err) {
+		if (err) {
+			console.log('Error opening serial port: ', err.message);
+		}
+	});
+	
+	// Create Hex Parser and link to serialPort
+	const Parser = require('@serialport/parser-delimiter')
+	const parser = serialPort.pipe(new Parser({includeDelimiter: true, delimiter: hexToBytes('ff') }))
+	parser.on('data', viscaRS232ResponseParser)
+	//console.log('Parser Created')
+
+	//Open UDP Port
+	createMySocket(config.port_udp);
+}
 
 function loadFile() //loads settings on first load of app
 {
@@ -33,6 +63,9 @@ function loadFile() //loads settings on first load of app
 		if (myJson.baudRate) {
 			config.baudRate = myJson.baudRate;
 		}
+		if (myJson.visca_id) {
+			config.visca_id = myJson.visca_id;
+		}
 	}
 	catch(error) {
 		console.log('Error parsing config file:');
@@ -40,23 +73,20 @@ function loadFile() //loads settings on first load of app
 	}
 }
 
-function createSocket(port) {
-	let socket = udp.createSocket('udp4');
+function createMySocket(port) {// Helper function creates udp4 socket and binds events
+	socket = udp.createSocket('udp4');
 	socket.on('error', function(error) {
 		console.log('Error: ' + error);
 		socket.close();
 	});
 	
-	socket.on('message', function(msg, info) {
-		console.log('Received %d bytes from %s:%d\n',msg.length, info.address, info.port);
-
-		//now write it to the serial port
-		serialPort.write(msg);
+	socket.on('message', function(msg, rinfo) {
+		//console.log('\nUDP Received %d bytes from %s:%d',msg.length, rinfo.address, rinfo.port, msg);
+		translate_visca_ip_to_cv620_visca_rs232(msg,rinfo.address,rinfo.port)
 	});
 	
 	socket.on('listening', function() {
 		let address = socket.address();
-
 		console.log('Socket listening at: ' + address.address + ':' + address.port);
 	});
 	
@@ -64,25 +94,208 @@ function createSocket(port) {
 		console.log('Socket is closed!');
 	});
 	
-	socket.bind(port);
+	socket.on('connect', function() {
+		console.log('Socket is connected');
+	});
+	
+	socket.bind(port,() => {
+		  const size = socket.ref();
+		  console.log(size.eventNames());
+		});
 }
 
-function startup() {
-	loadFile();
 
-	//Open Serial Port
-	console.log('Opening Serial Port: ' + config.port_serial);
-	console.log('Baud Rate: ' + config.baudRate);
-	serialPort = new SerialPort(config.port_serial, {
-		baudRate: config.baudRate
-	}, function (err) {
-		if (err) {
-			console.log('Error opening serial port: ', err.message);
+function udp_respond(msg_text){ // Reference function to wrap udp responses to last known port and address considering Visca ID change and HEX conversion
+	msg_text = translateViscaIdForIP(msg_text)
+	msg_hex = hexToBytes(msg_text)
+	socket.send(msg_hex,last_port,last_address)
+}
+
+function viscaRS232ResponseParser(msg) {
+	msg_string = bytesToHexStrSpace(msg)
+  	console.log('Visca-RS232-received:: ', msg_string)
+  	
+  	// Define some Responses that should trigger special actions
+  	rs232_syntax_error_text = "90 60 02 ff" 
+  	rs232_information_cam_powerInq_regex = /90 50 0[23] ff/
+  	
+
+  	if (compare_array(rs232_syntax_error_text,msg)) {
+		console.log('\tVisca-Response: Syntax error')
 		}
-	});
+	else if (msg_string.match(rs232_information_cam_powerInq_regex) != null) {
+		relevant = msg_string.substring(6,9)
+		if (relevant=='02') {
+			console.log('\tVisca-Response: CAM_PowerInq = On',msg[10])
+			}
+		else if(relevant=='03') {
+			console.log('\tVisca-Response: CAM_PowerInq = Off(Standby)',msg[10])
+			}
+		translate_visca_rs232_to_visca_ip(msg)
+		}
+	else {
+		translate_visca_rs232_to_visca_ip(msg)
+	}
+}
 
-	//Open UDP Port
-	server = createSocket(config.port_udp);
+function addSpaceAndZerosToHexStr(str){ 
+// Function to make sure hex String includes 0 and is formated in pairs split by space
+	str = str.toString()
+	str = str.length == 0 ? "00 " :
+	      str.length == 1 ? "0" + str +' ' : 
+	      str.length == 2 ? str +' ':
+	      str.substring(str.length-2, str.length);
+	return str
+}
+
+// Convert a hex string to a Uint8Array
+function hexToBytes(hex) {
+	//console.log('Trying Hex string -> Byte on',hex)
+	for (var bytes = [], c = 0; c < hex.length; c += 3)
+		bytes.push(parseInt(hex.substr(c, 2), 16));
+	let result = new Uint8Array(bytes);
+	//console.log('result: ',result)
+	return result;
+}
+
+// Convert Bytes to Hex String
+function bytesToHexStrSpace(bytes)
+{
+	var result = "";
+	//console.log('Trying Byte -> Hex string on',bytes)
+	bytes = new Uint8Array(bytes)
+    	for (i in bytes) {
+    		//console.log(bytes[i])
+		var str = bytes[i].toString(16);
+		str = addSpaceAndZerosToHexStr(str)
+		result += str;
+    	}
+    	result = result.substring(0, result.length-1)
+    	//console.log('result: ',result)
+    	return result;
+}
+
+function compare_array(array1,array2){
+	is_same = array1 == bytesToHexStrSpace(array2) 
+	//console.log('Comparing text\n',array1,' to \n', bytesToHexStrSpace(array2), is_same)
+	return is_same
+}
+function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+   }
+   
+function translateViscaIdForIP(text)
+	{
+	/* 
+	Modifies the destination address of outgoing Visca-IP messages to the respective visca-rs232 ID from conifg
+	Looks for a 81 as receiver and shifts to 81-1+visca_id
+	Always shifts receiver back to 90 to mimic Visca-IP required Visca-ID 1
+	*/
+
+	regex_sender = /[9ABCDEF]0/
+	result = ''
+	
+	if (text.substring(0,2)=='01') //with Visca IP Payload
+	{	
+		part = text.substring(24,26)
+		if (part == '81')
+			
+			{part = parseInt(part,16)+config.visca_id-1
+			part = part.toString(16) 
+			}
+		else if (part.match(regex_sender))
+			{part = '90'}
+		
+		result = text.substring(0,24) + part + text.substring(26,text.length)	
+	} else if (text.substring(0,2)=='81' | text.substring(0,2)=='90')  //Visca Only
+		{
+		part = text.substring(0,2)
+		if (part == '81')
+			{part = parseInt(part,16)+config.visca_id-1
+			part = part.toString(16) 
+			}
+		else if (part.match(regex_sender))
+			{part = '90'
+			}
+		else {
+			console.log('Error - no change')
+		}
+		result = part + text.substring(2,text.length)	
+	} else {
+		result = text}
+	return result
+	}
+   
+function translate_visca_rs232_to_visca_ip(msg)
+	{
+	payload_length = addSpaceAndZerosToHexStr(msg.length)	
+	response_ip_text = '01 11 00 '+ payload_length + '00 00 00 01 ' + bytesToHexStrSpace(msg)
+	console.log('\tForwardning from RS232 to Visca-IP as',response_ip_text)
+	udp_respond(response_ip_text)
+	}
+
+function translate_visca_ip_to_cv620_visca_rs232(msg,address,port){ //camera specific methos which selectively answers or forwards
+	console.log("Visca-IP Message Processing for",address,':',port,'on:',msg)
+	//save address and port for reuse with replies
+	last_address = address
+	last_port = port
+	
+	//define basic responsens and querys to check for
+	visca_ack_text = '90 41 FF'
+	visca_ack_ip_text = '01 11 00 03 00 00 00 01 '+ visca_ack_text
+	
+	visca_complete_text = '90 51 FF'
+	visca_complete_ip_text ='01 11 00 03 00 00 00 01 '+ visca_complete_text
+	
+	//Control Command - Reset Sequence Number
+	visca_reset_sequence_number_ip_text = 		'02 00 00 01 00 00 00 00 01' 
+	visca_reset_sequence_number_ip_response_text = '02 01 00 01 00 00 00 00 01' //Acknowledge Control Request
+
+	//Tally Mode  5: (Power LED:Red     Standby:Red) 
+	visca_tally_mode_regex = /(81 01 7e 01 0a 01 0)[0,2,3,5,6,7]( ff)/
+	
+	//Visca Inquiry: CAM_PowerInq
+	//visca_CAMP_PowerInq_text = '81 09 04 00 ff'
+	//visca_CAMP_PowerInq_ip_text = '01 10 00 05 00 00 00 01 '+visca_CAMP_PowerInq_text
+	
+	if (compare_array(visca_reset_sequence_number_ip_text,msg)){
+		//console.log('\tDetected Visca-IP Control Command - Reset Sequence Number')	
+		//console.log('\tDirect Reply with ACK Control Command because RS232 does not have this option:', 				
+		//	visca_reset_sequence_number_ip_response_text)
+		udp_respond(visca_reset_sequence_number_ip_response_text)
+		
+	} else if (bytesToHexStrSpace(msg).match(visca_tally_mode_regex) != null)
+		{
+		//special for CV620-bk4 - Does not have Tally but needs to confirm message
+		console.log('\tDetected Visca-RS232 Command: Tally Mode X:')	
+		console.log('\tDirect Reply with ACK:', visca_ack_ip_text)
+		udp_respond(visca_ack_ip_text)
+		console.log('\tDirect Reply with COMPLETE:', visca_complete_ip_text)
+		udp_respond(visca_complete_ip_text)
+	/*
+	}  // For debugging PowerInq related issues only
+	else if (compare_array(visca_CAMP_PowerInq_ip_text,msg)) {
+		console.log('\tDetected Visca-RS232 Inquiry: CAM_PowerInq')	
+	
+		visca_text =  bytesToHexStrSpace(new Uint16Array(msg).slice(8))
+		visca_hex = hexToBytes(translateViscaIdForIP(visca_text))
+		serialPort.write(Buffer.from(visca_hex));
+		console.log('\tVisca-RS232-sent: ', visca_text)
+	*/	 
+	} else {
+		visca_type = new Uint16Array(msg)[0]
+		if (1== visca_type) {
+			visca_text =  bytesToHexStrSpace(new Uint16Array(msg).slice(8))
+			visca_hex = hexToBytes(translateViscaIdForIP(visca_text))
+			serialPort.write(Buffer.from(visca_hex));
+			console.log('\tVisca-RS232-sent: ', visca_text)
+		}
+		else if (2 == visca_type) {
+			console.log('Control Message of Unknown Type',msg)
+		}
+		else {
+		}
+	}
 }
 
 startup();
