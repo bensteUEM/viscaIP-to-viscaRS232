@@ -23,9 +23,12 @@ https://www.amazon.de/gp/product/B077PV1H97/ref=ppx_yo_dt_b_asin_title_o03_s00?i
 * Run `node index.js` to start the server.
 
 By default, the server will attempt to open:
-* UDP Port `52381`
+* UDP Port `52381` and respective successive ports as defined in port_udp_count
 * Serial Port `/dev/ttyUSB0` with a baud rate of `9600`
-* Visca ID 1
+* Translates ViscaID relative to the UDP port
+  * If camera 1 (81) is addressed the camera ID will be shifted according to the port offset (e.g. by default to 82 if for port 52382)
+  * if Visca-ID 82 or higher the ID will remain unchanged
+* Responses will always be from Visca-ID 1
 
 This is configurable by modifying the `config.json` file.
 
