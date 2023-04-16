@@ -38,3 +38,30 @@ If you're not sure what your serial port address is, on Linux, you can run this 
 `dmesg | grep tty`
 
 It will filter the list to show you the serial ports.
+
+## Special use
+
+Update ViscaID using a Non-Visca custom command.
+In order to map one Visca-IP endpoint dynamically to multiple ViscaIDs the ID can be overwritten with a special UDP request.
+One use case could be using bitfocus companion in order to detect the preview input number from a video mixer (e.g. ATEM) and map camera control to this particular camera.
+
+This can be achived by setting up a UDP module in Companion which sends messages to the same port as the Visca-IP module.
+The message which should be be sent should be like this with XX at the 2nd last block to be replaced by ID 01-07
+%01%20%00%06%00%00%00%00%80%01%00%04%XX%FF
+
+Overwriting ViscaID is temporary only - default from config will be loaded on each restart
+
+### Visca-IP explanation
+
+ViscaIP Header
+01 20 Visca Device Setting Command
+
+Payload Lenght
+00 06
+
+Sequence Number
+00 00 00 00
+
+Visca RS232 Message for ID change is (XX to be replaced by 01-07)
+usually 81 would indicate this change for cam 1, as this needs to change the module 80 is used as non standard value instead
+80 01 00 04 XX FF

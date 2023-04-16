@@ -288,11 +288,30 @@ function translate_visca_ip_to_cv620_visca_rs232(msg) {
 	} else {
 		const visca_type = new Uint16Array(msg)[0]
 		if (1 == visca_type) {
-			let visca_text = bytesToHexStrSpace(new Uint16Array(msg).slice(8))
-			visca_text = translateViscaIdForIP(visca_text)
-			const visca_hex = hexToBytes(visca_text)
-			serialPort.write(Buffer.from(visca_hex))
-			console.log('\tVisca-RS232-sent: ', visca_text)
+			const visca_type_2 = new Uint16Array(msg)[1]
+			if (0x00 == visca_type_2 || 0x10 == visca_type_2) {
+				//VISCA command || VISCA inquiry
+				let visca_text = bytesToHexStrSpace(new Uint16Array(msg).slice(8))
+				visca_text = translateViscaIdForIP(visca_text)
+				const visca_hex = hexToBytes(visca_text)
+				serialPort.write(Buffer.from(visca_hex))
+				console.log('\tVisca-RS232-sent: ', visca_text)
+			} else if (0x20 == visca_type_2) {
+				// VISCA device setting command
+				let visca_text = new Uint16Array(msg).slice(8)
+				if (0x80 == visca_text[0]) {
+					//custom message for module visca ID change
+					let new_id = visca_text[4]
+					console.log(`VISCA device setting command custom command for ID change of module ${new_id}`)
+					//TODO implement change in config here #1
+				} else {
+					console.log('VISCA device setting command forwarding is not implemented')
+				}
+				console.log('\tDirect Reply with ACK:', visca_ack_ip_text)
+				udp_respond(visca_ack_ip_text)
+			} else {
+				console.log('Unknown Payload type! - Check Visca-IP Syntax')
+			}
 		} else if (2 == visca_type) {
 			console.log('Control Message of Unknown Type', msg)
 		} else {
