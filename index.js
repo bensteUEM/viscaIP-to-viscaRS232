@@ -118,22 +118,22 @@ function createMySocket(port) {
 function udp_respond(msg_text) {
 	// Reference function to wrap udp responses to last known port and address considering Visca ID change and HEX conversion
 	msg_text = translateViscaIdForIP(msg_text)
-	msg_hex = hexToBytes(msg_text)
+	const msg_hex = hexToBytes(msg_text)
 	last_socket.send(msg_hex, last_port, last_address)
 }
 
 function viscaRS232ResponseParser(msg) {
-	msg_string = bytesToHexStrSpace(msg)
+	const msg_string = bytesToHexStrSpace(msg)
 	console.log('Visca-RS232-received:: ', msg_string)
 
 	// Define some Responses that should trigger special actions
-	rs232_syntax_error_text = '90 60 02 ff'
-	rs232_information_cam_powerInq_regex = /90 50 0[23] ff/
+	const rs232_syntax_error_text = '90 60 02 ff'
+	const rs232_information_cam_powerInq_regex = /90 50 0[23] ff/
 
 	if (compare_array(rs232_syntax_error_text, msg)) {
 		console.log('\tVisca-Response: Syntax error')
 	} else if (msg_string.match(rs232_information_cam_powerInq_regex) != null) {
-		relevant = msg_string.substring(6, 9)
+		const relevant = msg_string.substring(6, 9)
 		if (relevant == '02') {
 			console.log('\tVisca-Response: CAM_PowerInq = On', msg[10])
 		} else if (relevant == '03') {
@@ -186,9 +186,9 @@ function bytesToHexStrSpace(bytes) {
 }
 
 function compare_array(array1, array2) {
-	is_same = array1 == bytesToHexStrSpace(array2)
-	//console.log('Comparing text\n',array1,' to \n', bytesToHexStrSpace(array2), is_same)
-	return is_same
+	let result = array1 == bytesToHexStrSpace(array2)
+	//console.log('Comparing text\n',array1,' to \n', bytesToHexStrSpace(array2), result)
+	return result
 }
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms))
@@ -199,11 +199,11 @@ function translateViscaIdForIP(text) {
 	Modifies the destination address of outgoing Visca-IP messages to the respective visca-rs232 ID from conifg
 	Always shifts receiver back to 90 to mimic Visca-IP required Visca-ID 1
 	*/
-	regex_to_camera = /8[1234567]/
-	regex_from_camera = /[9ABCDEFabcdef]0/
-	result = ''
+	const regex_to_camera = /8[1234567]/
+	const regex_from_camera = /[9ABCDEFabcdef]0/
+	let result = ''
 
-	identifier = text.substring(0, 2)
+	let identifier = text.substring(0, 2)
 	//console.log('checking translation for ident:',identifier)
 	if (identifier == '01') {
 		//with Visca IP Payload call recursion with Visca Payload only
@@ -212,7 +212,7 @@ function translateViscaIdForIP(text) {
 		//(identifier == '81') // Visca which should be sent to camera
 		//{
 		//if (identifier == '81') // If ViscaID 1 map to Visca ID Matching 1+Offset from default udp port
-		socket_id = last_socket.address()['port'] - config.port_udp + 1
+		let socket_id = last_socket.address()['port'] - config.port_udp + 1
 		identifier = parseInt(identifier, 16) + socket_id - 1
 		identifier = identifier.toString(16)
 		result = identifier + text.substring(2, text.length)
@@ -241,12 +241,12 @@ function translate_visca_rs232_to_visca_ip(msg) {
 	/* Function that translates rs232 messages back to Visca IP by adding payload and respective headers
 	Also triggers conversion for visca ID mapping
 	*/
-	payload_length = addSpaceAndZerosToHexStr(msg.length)
+	const payload_length = addSpaceAndZerosToHexStr(msg.length)
 
 	msg = bytesToHexStrSpace(msg)
 	msg = translateViscaIdForIP(msg)
 
-	response_ip_text = '01 11 00 ' + payload_length + '00 00 00 01 ' + msg
+	const response_ip_text = '01 11 00 ' + payload_length + '00 00 00 01 ' + msg
 	console.log('\tForwardning from RS232 to Visca-IP as', response_ip_text)
 	udp_respond(response_ip_text)
 }
@@ -256,18 +256,18 @@ function translate_visca_ip_to_cv620_visca_rs232(msg) {
 	console.log('Visca-IP Message Processing for', last_address, ':', last_port, 'on:', msg)
 
 	//define basic responsens and querys to check for
-	visca_ack_text = '90 41 FF'
-	visca_ack_ip_text = '01 11 00 03 00 00 00 01 ' + visca_ack_text
+	const visca_ack_text = '90 41 FF'
+	const visca_ack_ip_text = '01 11 00 03 00 00 00 01 ' + visca_ack_text
 
-	visca_complete_text = '90 51 FF'
-	visca_complete_ip_text = '01 11 00 03 00 00 00 01 ' + visca_complete_text
+	const visca_complete_text = '90 51 FF'
+	const visca_complete_ip_text = '01 11 00 03 00 00 00 01 ' + visca_complete_text
 
 	//Control Command - Reset Sequence Number
-	visca_reset_sequence_number_ip_text = '02 00 00 01 00 00 00 00 01'
-	visca_reset_sequence_number_ip_response_text = '02 01 00 01 00 00 00 00 01' //Acknowledge Control Request
+	const visca_reset_sequence_number_ip_text = '02 00 00 01 00 00 00 00 01'
+	const visca_reset_sequence_number_ip_response_text = '02 01 00 01 00 00 00 00 01' //Acknowledge Control Request
 
 	//Tally Mode  5: (Power LED:Red     Standby:Red)
-	visca_tally_mode_regex = /(8[1234567] 01 7e 01 0a 01 0)[023567]( ff)/
+	const visca_tally_mode_regex = /(8[1234567] 01 7e 01 0a 01 0)[023567]( ff)/
 
 	//Visca Inquiry: CAM_PowerInq
 	//visca_CAMP_PowerInq_text = '81 09 04 00 ff'
@@ -286,11 +286,11 @@ function translate_visca_ip_to_cv620_visca_rs232(msg) {
 		console.log('\tDirect Reply with COMPLETE:', visca_complete_ip_text)
 		udp_respond(visca_complete_ip_text)
 	} else {
-		visca_type = new Uint16Array(msg)[0]
+		const visca_type = new Uint16Array(msg)[0]
 		if (1 == visca_type) {
-			visca_text = bytesToHexStrSpace(new Uint16Array(msg).slice(8))
+			let visca_text = bytesToHexStrSpace(new Uint16Array(msg).slice(8))
 			visca_text = translateViscaIdForIP(visca_text)
-			visca_hex = hexToBytes(visca_text)
+			const visca_hex = hexToBytes(visca_text)
 			serialPort.write(Buffer.from(visca_hex))
 			console.log('\tVisca-RS232-sent: ', visca_text)
 		} else if (2 == visca_type) {
