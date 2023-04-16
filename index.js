@@ -7,11 +7,12 @@ const fs = require('fs')
 
 const configFile = 'config.json'
 
-const config = {
+let config = {
 	port_udp: 52381,
 	port_udp_count: 2,
 	port_serial: '/dev/ttyUSB0',
 	baudRate: 9600,
+	customViscaId: undefined,
 }
 
 let serialPort = null //variable for serial port reference
@@ -213,8 +214,19 @@ function translateViscaIdForIP(text) {
 		//{
 		//if (identifier == '81') // If ViscaID 1 map to Visca ID Matching 1+Offset from default udp port
 		let socket_id = last_socket.address()['port'] - config.port_udp + 1
-		identifier = parseInt(identifier, 16) + socket_id - 1
-		identifier = identifier.toString(16)
+
+		//if it's the default socket temporary viscaID overwrides need to be taken into account
+		if (socket_id == 1 && config.customViscaId != undefined) 
+		{
+			identifier = config.customViscaId + 80
+			console.log(`custom viscaID set for first socket ${identifier}`)
+		}
+		//otherwise simply translate back with offset
+		else {
+			identifier = parseInt(identifier, 16) + socket_id - 1
+			identifier = identifier.toString(16)
+		}
+
 		result = identifier + text.substring(2, text.length)
 		/*	 }
 		else // Visca ID 2-7 forwarded directly without change
@@ -287,7 +299,7 @@ function translate_visca_ip_to_cv620_visca_rs232(msg) {
 		udp_respond(visca_complete_ip_text)
 	} else {
 		const visca_type = new Uint16Array(msg)[0]
-		if (1 == visca_type) {
+		if (0x01 == visca_type) {
 			const visca_type_2 = new Uint16Array(msg)[1]
 			if (0x00 == visca_type_2 || 0x10 == visca_type_2) {
 				//VISCA command || VISCA inquiry
@@ -303,7 +315,7 @@ function translate_visca_ip_to_cv620_visca_rs232(msg) {
 					//custom message for module visca ID change
 					let new_id = visca_text[4]
 					console.log(`VISCA device setting command custom command for ID change of module ${new_id}`)
-					//TODO implement change in config here #1
+					config.customViscaId = new_id
 				} else {
 					console.log('VISCA device setting command forwarding is not implemented')
 				}
