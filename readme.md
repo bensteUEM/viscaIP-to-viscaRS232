@@ -1,5 +1,5 @@
-# 
-viscaIP-to-viscaRS232 
+# viscaIP-to-viscaRS232
+
 A Node.js server that listens to a specified UDP port and writes whatever data it receives to a local serial port.
 
 Written so we could send VISCA via UDP to a local RS-232 serial adapter to control multiple Marshall CV620-BK4 cameras.
@@ -13,22 +13,23 @@ Known to work with this adapter:
 https://www.amazon.com/gp/product/B078X5H8H7/
 DSD TECH SH-U10 USB to RS485 Converter with CP2102 Chip Compatible with Windows 7,8,10,Linux,Mac OS
 
-Used 
+Used
 https://www.amazon.de/gp/product/B077PV1H97/ref=ppx_yo_dt_b_asin_title_o03_s00?ie=UTF8&psc=1 together with Marshal CV-620-Cable07 adapter to connect.
 
-
 ## Installing this software:
-* Copy the code to a working directly on your computer. Make sure Node is installed.
-* Run `npm install` to make sure all required modules are downloaded and installed.
-* Run `node index.js` to start the server.
+
+- Copy the code to a working directly on your computer. Make sure Node is installed.
+- Run `npm install` to make sure all required modules are downloaded and installed.
+- Run `node index.js` to start the server.
 
 By default, the server will attempt to open:
-* UDP Port `52381` and respective successive ports as defined in port_udp_count
-* Serial Port `/dev/ttyUSB0` with a baud rate of `9600`
-* Translates ViscaID relative to the UDP port
-  * If camera 1 (81) is addressed the camera ID will be shifted according to the port offset (e.g. by default to 82 if for port 52382)
-  * if Visca-ID 82 or higher the ID will remain unchanged
-* Responses will always be from Visca-ID 1
+
+- UDP Port `52381` and respective successive ports as defined in port_udp_count
+- Serial Port `/dev/ttyUSB0` with a baud rate of `9600`
+- Translates ViscaID relative to the UDP port
+  - If camera 1 (81) is addressed the camera ID will be shifted according to the port offset (e.g. by default to 82 if for port 52382)
+  - if Visca-ID 82 or higher the ID will remain unchanged
+- Responses will always be from Visca-ID 1
 
 This is configurable by modifying the `config.json` file.
 
