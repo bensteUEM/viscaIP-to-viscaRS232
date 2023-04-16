@@ -1,5 +1,7 @@
+const { SerialPort } = require('serialport')
+const { DelimiterParser } = require('@serialport/parser-delimiter')
+
 //udp-to-serial
-const SerialPort = require('serialport')
 const udp = require('dgram')
 const fs = require('fs')
 
@@ -12,13 +14,13 @@ const config = {
 	baudRate: 9600,
 }
 
-var serialPort = null //variable for serial port reference
-var sockets = [] //variable to store UDP socket for responding
+let serialPort = null //variable for serial port reference
+let sockets = [] //variable to store UDP socket for responding
 
 //save last used address and port for response
-var last_socket = null
-var last_address = null
-var last_port = null
+let last_socket = null
+let last_address = null
+let last_port = null
 
 function startup() {
 	// runs the UDP and Serial connections
@@ -27,10 +29,9 @@ function startup() {
 
 	//Open Serial Port
 	console.log('Opening Serial Port: ' + config.port_serial)
-	//console.log('Baud Rate: ' + config.baudRate);
 	serialPort = new SerialPort(
-		config.port_serial,
 		{
+			path: config.port_serial,
 			baudRate: config.baudRate,
 		},
 		function (err) {
@@ -41,8 +42,7 @@ function startup() {
 	)
 
 	// Create Hex Parser and link to serialPort
-	const Parser = require('@serialport/parser-delimiter')
-	const parser = serialPort.pipe(new Parser({ includeDelimiter: true, delimiter: hexToBytes('ff') }))
+	const parser = serialPort.pipe(new DelimiterParser({ delimiter: hexToBytes('ff'), includeDelimiter: true }))
 	parser.on('data', viscaRS232ResponseParser)
 	//console.log('Parser Created')
 
@@ -161,8 +161,9 @@ function addSpaceAndZerosToHexStr(str) {
 
 // Convert a hex string to a Uint8Array
 function hexToBytes(hex) {
+	let bytes
 	//console.log('Trying Hex string -> Byte on',hex)
-	for (var bytes = [], c = 0; c < hex.length; c += 3) bytes.push(parseInt(hex.substr(c, 2), 16))
+	for (bytes = [], c = 0; c < hex.length; c += 3) bytes.push(parseInt(hex.substr(c, 2), 16))
 	let result = new Uint8Array(bytes)
 	//console.log('result: ',result)
 	return result
@@ -170,12 +171,12 @@ function hexToBytes(hex) {
 
 // Convert Bytes to Hex String
 function bytesToHexStrSpace(bytes) {
-	var result = ''
+	let result = ''
 	//console.log('Trying Byte -> Hex string on',bytes)
 	bytes = new Uint8Array(bytes)
 	for (i in bytes) {
 		//console.log(bytes[i])
-		var str = bytes[i].toString(16)
+		let str = bytes[i].toString(16)
 		str = addSpaceAndZerosToHexStr(str)
 		result += str
 	}
